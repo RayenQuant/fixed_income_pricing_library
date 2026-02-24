@@ -2,7 +2,7 @@
 
 A production-grade C# library for pricing fixed income derivatives, calculating risk metrics (Greeks), and performing portfolio-level analytics including Value-at-Risk (VaR).
 
-## 🚀 Key Features
+## Key Features
 
 ### 1. Multi-Model Pricing Engine
 The system automatically routes instruments to the most appropriate mathematical model:
@@ -26,7 +26,7 @@ The system automatically routes instruments to the most appropriate mathematical
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 FixedIncomePricingLibrary/
@@ -50,7 +50,7 @@ FixedIncomePricingLibrary/
 
 ---
 
-## 🛠️ Usage
+## Usage
 
 ### Prerequisites
 *   .NET 9.0 SDK
@@ -75,7 +75,7 @@ dotnet test
 
 ---
 
-## 📊 Market Data CSV Formats
+## Market Data CSV Formats
 
 The system expects CSV files in the `data/market_data` folder:
 *   **usd_treasury_curve.csv:** Tenors from 1M to 30Y.
