@@ -1,86 +1,124 @@
 # Fixed Income Pricing Library (.NET 9)
 
-A production-grade C# library for pricing fixed income derivatives, calculating risk metrics (Greeks), and performing portfolio-level analytics including Value-at-Risk (VaR).
-
-## Key Features
-
-### 1. Multi-Model Pricing Engine
-The system automatically routes instruments to the most appropriate mathematical model:
-*   **Bonds (Fixed/Zero) & Swaps:** Analytical Discounting Engine using multi-curve framework (SOFR for discounting).
-*   **Swaptions:** Black-76 model calibrated to normal volatility cubes.
-*   **Caps & Floors:** Black-76 model with support for volatility smiles and individual caplet/floorlet valuation.
-*   **Exotics:** Hull-White One-Factor model using both Monte Carlo path generation and Trinomial Trees (Backward Induction).
-
-### 2. Market Data & Calibration
-*   **Yield Curve Construction:** Bootstrapped curves from Treasury quotes with Log-Linear interpolation.
-*   **Automatic Calibration:** The Hull-White model auto-calibrates to market instruments (swaptions/bonds) using Nelder-Mead optimization.
-*   **Volatility Surfaces:** Support for 3D swaption cubes and 2D cap/floor smile surfaces.
-
-### 3. Risk & Portfolio Analytics
-*   **Greeks:** Numerical calculation of DV01 and Modified Duration via parallel curve shifting.
-*   **Scenario Analysis:** Portfolio P&L analysis across parallel yield curve shocks (-100bp to +100bp).
-*   **Value-at-Risk (VaR):** 
-    *   **Monte Carlo VaR:** 10,000+ simulations with historical rate volatility.
-    *   **CVaR (Expected Shortfall):** Tail risk assessment for extreme events.
-    *   **Parametric VaR:** Variance-covariance approach using normal distributions.
+A professional-grade C# SDK for Fixed Income Derivatives pricing, risk management, and market data analytics. Designed for integration into trading platforms, risk systems, or automated valuation pipelines.
 
 ---
 
-## Project Structure
+## Architecture & Modules
 
-```text
-FixedIncomePricingLibrary/
-├── src/
-│   ├── Core/           (Interfaces, Enums, Models)
-│   ├── Analytics/      (DayCount, Calendars, CashFlows)
-│   ├── MarketData/     (YieldCurves, Volatility, CSV Providers)
-│   ├── Instruments/    (Bonds, Swaps, Options, Caps/Floors)
-│   ├── Pricing/        (Engines, Hull-White, Black-76, MC)
-│   └── Risk/           (Greeks, VaR, Portfolio Management)
-├── tests/
-│   ├── UnitTests/      (30+ tests for math correctness)
-│   └── IntegrationTests/
-├── samples/
-│   └── ConsoleApp/     (Interactive Trading Desk UI)
-└── data/
-    ├── market_data/    (Yield curves, Vol surfaces)
-    ├── historical/     (Historical data for VaR)
-    └── calendars/      (Holiday calendars)
+The library is strictly modular, allowing you to use individual components (like Day Counters) or the full Pricing Pipeline.
+
+### 1. `Core`
+*   **Interfaces:** `IInstrument`, `IYieldCurve`, `IPricingEngine`, `IVolatilitySurface`.
+*   **Enums:** Industry-standard conventions (`DayCountConvention`, `BusinessDayConvention`, `CouponFrequency`).
+
+### 2. `MarketData`
+*   **Yield Curves:** High-performance bootstrapping with Log-Linear, Linear, or Cubic Spline interpolation. 
+*   **Volatility:** Support for 3D Swaption Cubes and 2D Cap/Floor Smile Surfaces.
+*   **Providers:** Built-in CSV loaders for Treasury Curves and SOFR fixings.
+
+### 3. `Instruments`
+*   **Cash Products:** Fixed-Rate Bonds, Zero-Coupon Bonds, Floating-Rate Notes.
+*   **Linear Derivatives:** Vanilla Interest Rate Swaps (IRS), Basis Swaps.
+*   **Options:** Swaptions (Payer/Receiver), Caps, Floors, Collars.
+
+### 4. `Pricing`
+*   **Analytical:** Discounting Engine (Bonds/Swaps), Black-76 (European Options).
+*   **Numerical:** Hull-White One-Factor model via **Trinomial Tree** (Backward Induction) or **Monte Carlo** simulation.
+*   **Calibration:** Automated Hull-White parameter optimization (Mean Reversion $\alpha$, Volatility $\sigma$) using market quotes.
+
+### 5. `Risk`
+*   **Greeks:** DV01, Modified Duration, Convexity.
+*   **Analytics:** Scenario Analysis (parallel shifts), Portfolio NPV aggregation.
+*   **VaR:** 1-day Value-at-Risk using Monte Carlo simulation & Historical Simulation.
+
+---
+
+##  Developer Guide: Usage Examples
+
+### 1. Pricing a Bond
+```csharp
+using FixedIncomePricingLibrary.Instruments;
+using FixedIncomePricingLibrary.Pricing.Engines;
+using FixedIncomePricingLibrary.MarketData.YieldCurves;
+
+// Load a curve
+var curve = YieldCurveBuilder.FlatCurve(DateTime.Today, 0.045);
+
+// Create instrument
+var bond = new Bond {
+    Id = "UST-10Y",
+    Notional = 1_000_000,
+    CouponRate = 0.0425,
+    MaturityDate = DateTime.Today.AddYears(10),
+    Frequency = CouponFrequency.SemiAnnual,
+    DayCount = DayCountConvention.Thirty360
+};
+
+// Price
+var engine = new BondPricingEngine(curve);
+var result = engine.Price(bond);
+
+Console.WriteLine($"Dirty Price: {result.DirtyPrice}");
+```
+
+### 2. Pricing a Swaption with Black-76
+```csharp
+using FixedIncomePricingLibrary.Pricing.Engines;
+using FixedIncomePricingLibrary.MarketData.Volatility;
+
+// Setup market data
+var volSurface = new SwaptionVolatilityCube(0.40); // 40% normal vol
+var engine = new BlackEngine(curve, volSurface);
+
+var swaption = new Swaption {
+    Notional = 10_000_000,
+    ExpiryDate = DateTime.Today.AddYears(1),
+    OptionType = OptionType.Payer,
+    UnderlyingSwap = mySwap
+};
+
+var price = engine.Price(swaption).DirtyPrice;
+```
+
+### 3. Calculating Portfolio Risk (DV01)
+```csharp
+using FixedIncomePricingLibrary.Risk;
+
+// Automatic engine factor for Greeks
+Func<IYieldCurve, IPricingEngine> factory = (c) => new BondPricingEngine(c);
+
+double dv01 = GreeksCalculator.CalculateDV01(factory, bond, curve);
+Console.WriteLine($"DV01: {dv01}"); // Sensitivity to 1bp move
 ```
 
 ---
 
-## Usage
+## 🧪 Testing & Validation
+The library includes a comprehensive test suite (32+ unit tests) covering:
+*   **Mathematical correctness:** Comparison against analytical closed-form solutions.
+*   **Conventions:** Day count accuracy (Actual/360, 30/360, etc.) and holiday adjustment logic.
+*   **Bootstrapping:** Convergence of the yield curve builder.
 
-### Prerequisites
-*   .NET 9.0 SDK
-
-### Running the Interactive Console
-The console app acts as a "mini-trading desk" that automatically loads market data and routes instruments to the correct models.
-
-```powershell
-dotnet run --project samples/ConsoleApp/ConsoleApp.csproj
-```
-
-**Recommended Flow:**
-1.  **Option 1:** Load Market Data (Loads `usd_treasury_curve.csv` + `swaption_volatilities.csv` and auto-calibrates HW).
-2.  **Option 2:** Add Instruments (Bonds, Swaps, Swaptions, or Caps).
-3.  **Option 4:** Price Portfolio (Automatic routing to Black-76 or Discounting).
-4.  **Option 7:** Run VaR (Uses historical volatility from the curve data).
-
-### Running Tests
+Run tests via CLI:
 ```powershell
 dotnet test
 ```
 
 ---
 
-## Market Data CSV Formats
+## Sample Data / Demo
+While the library is an SDK, a reference implementation is provided in `samples/ConsoleApp`. It demonstrates:
+*   How to load data from CSVs.
+*   How to orchestrate multiple pricing engines.
+*   How to run a high-performance Monte Carlo VaR on a multi-asset portfolio.
 
-The system expects CSV files in the `data/market_data` folder:
-*   **usd_treasury_curve.csv:** Tenors from 1M to 30Y.
-*   **swaption_volatilities.csv:** Option Tenor x Swap Tenor matrix.
-*   **cap_floor_volatilities.csv:** Tenor x Strike smile surface.
+---
+
+## 🛠️ Installation
+1. Clone the repository.
+2. Reference `FixedIncomePricingLibrary.csproj` in your solution.
+3. Install Nuget dependencies: `MathNet.Numerics`, `CsvHelper`.
 
 ---
 
